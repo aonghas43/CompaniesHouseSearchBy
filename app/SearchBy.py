@@ -1,12 +1,12 @@
 # progam to do advanced search against Companies House public APIs
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from datetime import datetime
 import json
 from pathlib import Path
 import requests
 import re
-from typing import Any
+
 
 @dataclass 
 class SearchResultCompany:
@@ -16,17 +16,16 @@ class SearchResultCompany:
 
 @dataclass
 class ParamList:
-    company_sic_codes: list = []
+    company_sic_codes: list = field(default_factory=[].copy)
     incorporated_from: str = ''
     incorporated_to: str = ''
-    officer_names: list = []
+    officer_names: list = field(default_factory=[].copy)
 
 class SearchBy:
- 
     api_key_name = ''
     api_key_value = '' 
-    results_companies = []
-    results_officers = []
+    results_companies: list = field(default_factory=[].copy)
+    results_officers: list = field(default_factory=[].copy)
     def __init__(self, outputdir='C:\temp'):
         self.outputdir = outputdir
         self.params = ParamList()
@@ -48,7 +47,42 @@ class SearchBy:
                  self.headers[a] = data[a]
         return
 
-    def search_first_pass(self) ->list: 
+    def write_results(self) -> None:
+        with open('companies.json', 'w', encoding='utf-8') as out:
+            json.dump(self.results_companies, out)
+        with open('officers.json', 'w', encoding='utf-8') as out:
+            json.dump(self.results_officers, out)
+
+    def run_from_txt(self)->None:
+        """ read company numbers from list; look for officers matching input string(s)"""
+        self.read_params()
+        with open('Companies-House-search-results.txt', 'r') as infile:
+            cno = infile.readline()
+            url = str.format('https://api.company-information.service.gov.uk/company/{}/officers', cno)
+            print(url)
+            found = False
+            with requests.get(url=url, auth=(self.headers['api_key_value'],''), allow_redirects=True, timeout=45) as response1:
+                found = False
+                data1 = json.load(response1.json())
+                for i in data1["items"]:
+                    for r in self.params.officer_names:
+                        if re.search(r,i.name):
+                            # get company profile
+                            url2 = str.format('https://api.company-information.service.gov.uk/company/{}',cno)
+                            with requests.get(url=url, auth=(self.headers['api_key_value'],''), allow_redirects=True, timeout=45) as response2:
+                                data2 = json.load(response1.json())
+                                el = data2["items"].first
+                                self.results_companies.append(el)
+                            self.results_officers.append(data1["items"])
+                            found = True
+                            break
+                    if found:
+                        break
+            self.write_results()
+            return
+#### FUTURE
+
+    def search_first_pass(self)->list: 
         #GET https://api.company-information.service.gov.uk/advanced-search/companies
         #company_status
         #incorporated_from
@@ -70,7 +104,7 @@ class SearchBy:
         results = []
         for el in first_pass:
             cno = el.thing
-            url = str.format('https://api.company-information.service.gov.uk/company/{}/officers), cno')
+            url = str.format('https://api.company-information.service.gov.uk/company/{}/officers', cno)
             found = False
             with requests.get(url=url, auth=(self.headers['api_key_value'],''), allow_redirects=True, timeout=45) as response:
                 found = False
@@ -88,16 +122,7 @@ class SearchBy:
                         break
                 if found:
                     break
-            if found:
-                break
-                         # TODO, make composite result record of company details and officer details
         return results
-
-    def write_results(self) -> None:
-        with open('companies.json', 'w', encoding='utf-8') as out:
-            json.dump(self.results_companies, out)
-        with open('officers.json', 'w', encoding='utf-8') as out:
-            json.dump(self.results_officers, out)
 
     def makeElement(self) ->SearchResultCompany:
         return SearchResultCompany()
@@ -125,31 +150,6 @@ class SearchBy:
             self.read_params()
             first_pass = self.search_first_pass()
             second_pass = self.search_second_pass(first_pass)
-            self.write_results()
-            return
-
-    def run_from_txt(self)->None:
-        with open('Companies-House-search-results.txt', 'r') as infile:
-            num = infile.readline()
-            url = str.format('https://api.company-information.service.gov.uk/company/{}/officers), cno')
-            found = False
-            with requests.get(url=url, auth=(self.headers['api_key_value'],''), allow_redirects=True, timeout=45) as response1:
-                found = False
-                data1 = json.load(response1.json())
-                for i in data1["items"]:
-                    for r in self.params.officer_names:
-                        if re.search(r,i.name):
-                            # get company profile
-                            url2 = str.format('https://api.company-information.service.gov.uk/company/{}',num)
-                            with requests.get(url=url, auth=(self.headers['api_key_value'],''), allow_redirects=True, timeout=45) as response2:
-                                data2 = json.load(response1.json())
-                                el = data2["items"].first
-                                self.results_companies.append(el)
-                            self.results_officers.append(data1["items"])
-                            found = True
-                            break
-                    if found:
-                        break
             self.write_results()
             return
 
