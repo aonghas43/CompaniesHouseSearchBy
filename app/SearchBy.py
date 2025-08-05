@@ -127,3 +127,30 @@ class SearchBy:
             second_pass = self.search_second_pass(first_pass)
             self.write_results()
             return
+
+    def run_from_txt(self)->None:
+        with open('Companies-House-search-results.txt', 'r') as infile:
+            num = infile.readline()
+            url = str.format('https://api.company-information.service.gov.uk/company/{}/officers), cno')
+            found = False
+            with requests.get(url=url, auth=(self.headers['api_key_value'],''), allow_redirects=True, timeout=45) as response1:
+                found = False
+                data1 = json.load(response1.json())
+                for i in data1["items"]:
+                    for r in self.params.officer_names:
+                        if re.search(r,i.name):
+                            # get company profile
+                            url2 = str.format('https://api.company-information.service.gov.uk/company/{}',num)
+                            with requests.get(url=url, auth=(self.headers['api_key_value'],''), allow_redirects=True, timeout=45) as response2:
+                                data2 = json.load(response1.json())
+                                el = data2["items"].first
+                                self.results_companies.append(el)
+                            self.results_officers.append(data1["items"])
+                            found = True
+                            break
+                    if found:
+                        break
+            self.write_results()
+            return
+
+
