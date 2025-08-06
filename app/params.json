@@ -1,8 +1,5 @@
 
 {
-
-
-
     "company_sic_codes"  : [ 
         "62011", 
         "62012", 
@@ -15,7 +12,9 @@
     "incorporated_from"  : "01/01/1980",
     "incorporated_to" : "31/12/1989",
     "officer_names"  : [
-        "David"
+        "David",
+        "Miles",
+        "Bowler"
     ]
 
 }

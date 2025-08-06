@@ -1,3 +1,6 @@
 api.json
+*.csv
+companies.json
+officers.json
 **.txt
 **/__pycache__
