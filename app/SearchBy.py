@@ -12,6 +12,7 @@ from typing import Any
 
 @dataclass
 class SearchResultCompany:
+    """Simple record for CSV output"""
     company_name: str = ''
     company_number: str = ''
     registered_office: str = ''
@@ -23,6 +24,7 @@ class SearchResultCompany:
 
 @dataclass
 class ParamList:
+    """Input parameters, alinged with format of params.json"""
     company_sic_codes: list = field(default_factory=[].copy)
     incorporated_from: str = ''
     incorporated_to: str = ''
@@ -30,7 +32,12 @@ class ParamList:
 
 
 class SearchBy:
-    """Input: list of company numbers; output, list filtered to only contin companies with offices with names matching input parameter"""
+    """
+    Input: list of company numbers;
+    output, list filtered to only contin companies with offices with names matching input parameter
+    """
+    company_profile_url = 'https://api.company-information.service.gov.uk/company/{}'
+    company_officers_url = 'https://api.company-information.service.gov.uk/company/{}/officers'
 
     def __init__(self, outputdir='C:\\temp'):
         self.outputdir = outputdir
@@ -42,6 +49,7 @@ class SearchBy:
         return
 
     def read_params(self, params="params.json", api="api.json") -> None:
+        """ read input parameters and API key from external files"""
         # read from params.json
         param_list = [attribute for attribute, value in self.params.__dict__.items()]
         with open(params, 'r', newline='', encoding='utf-8') as paramfile:
@@ -57,14 +65,15 @@ class SearchBy:
         return
 
     def write_results(self) -> None:
+        """Basic JSON output"""
         with open('companies.json', 'w', encoding='utf-8') as out:
             json.dump(self.results_companies, out)
         with open('officers.json', 'w', encoding='utf-8') as out:
             json.dump(self.results_officers, out)
         return
 
-    def write_records_for_csv(self):
-        """flatten company results for CSV output"""
+    def write_records_for_csv(self) -> None:
+        """companies output as CSV output"""
         # output file
         output_dialect = 'excel'    # may need to change to excel_tab if utf8 chars present
         file_suffix = ".csv"        # may need to change to tsv if excel-tab above
@@ -86,14 +95,14 @@ class SearchBy:
 
     def get_company_officers(self, cno) -> Any:
         """get officers for input company number"""
-        url = str.format('https://api.company-information.service.gov.uk/company/{}/officers', cno)
+        url = str.format(self.company_officers_url, cno)
         with requests.get(url=url, auth=(self.headers['api_key_value'], ''), allow_redirects=True, timeout=45) as response1:
             data1 = response1.json()
         return data1["items"]
 
     def get_company_profile(self, cno, officers) -> Any:
         """get company profile for input company number"""
-        url = str.format('https://api.company-information.service.gov.uk/company/{}', cno)
+        url = str.format(self.company_profile_url, cno)
         with requests.get(url=url, auth=(self.headers['api_key_value'], ''), allow_redirects=True, timeout=45) as response2:
             data2 = response2.json()
             self.make_company_csv_rec(data2, officers)
@@ -122,11 +131,12 @@ class SearchBy:
         self.results_companies_csv.append(json.loads(json.dumps(newrec.__dict__)))
         return
 
-    def calc_rate_limiting(self, filename):
+    def calc_rate_limiting(self, filename) -> int:
         """
-        Rate limiting applied: 600 requests in 5 minutes
+        Rate limiting applied: 600 requests in 5 minutes = 300 seconds
         Calculate if the input will trigger this and apply sleep if so
         """
+        fiveminutes = 5 * 60
         with open(filename, 'r') as infile:
             buff = infile.readlines()
             filesize = len(buff)
@@ -135,11 +145,14 @@ class SearchBy:
             fac = filesize // 500
         else:
             fac = 0
-            print("Limiting applied ", fac * 30)
-        return fac * 30
+        print("Filesize : ", filesize, "Limiting applied ", fac * fiveminutes)
+        return fac * fiveminutes
 
     def run_from_txt(self, infilename='Companies-House-search-results.txt') -> None:
-        """ read company numbers from list; look for officers matching input string(s)"""
+        """
+        read company numbers from list;
+        look for officers matching input string(s)
+        """
         self.read_params()
         limiter = self.calc_rate_limiting(infilename)
         with open(infilename, 'r') as infile:
@@ -148,11 +161,11 @@ class SearchBy:
             for line in infile:
                 counter += 1
                 cno = line.replace('\n', '')
-                if ((counter % 500) == 0) & (limiter > 0):
+                if ((counter // 500) == 0) & (limiter > 0):
                     print("sleeping :", limiter)
                     time.sleep(limiter)
                 officers = self.get_company_officers(cno)
-                found = False
+                found = False   # needed to break out of multiple loops
                 for i in officers:
                     for r in self.params.officer_names:
                         print(r)
